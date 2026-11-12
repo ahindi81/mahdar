@@ -107,14 +107,14 @@ export default function MeetingPage() {
           <span className="chip bad">Processing failed</span>
           <p>{m.error || 'Something went wrong.'}</p>
           <div className="toolbar" style={{ justifyContent: 'center' }}>
-            {m.transcript?.length ? <button className="btn btn-primary" type="button" onClick={() => rewrite()}>Try writing the minutes again</button>
-              : m.bot_id ? <><button className="btn btn-primary" type="button" onClick={retryBot}>Try again</button><Link className="btn" href="/app/new">Send the bot to another meeting</Link></>
+            {m.bot_id ? <><button className="btn btn-primary" type="button" onClick={retryBot}>Try again</button><Link className="btn" href="/app/new">Send the bot to another meeting</Link></>
+              : m.transcript?.length ? <button className="btn btn-primary" type="button" onClick={() => rewrite()}>Try writing the minutes again</button>
               : <Link className="btn btn-primary" href="/app/new">Upload again</Link>}
           </div>
         </div>
       )}
 
-      {(m.transcript?.length > 0) && (m.status === 'ready' || rewriting || (m.status === 'failed' && m.transcript?.length)) && (
+      {(m.transcript?.length > 0) && (m.status === 'ready' || rewriting || (m.status === 'failed' && !m.bot_id)) && (
         <div className="mgrid">
           <section className="card pane">
             <div className="tabs" role="tablist">
