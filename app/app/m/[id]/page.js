@@ -22,6 +22,7 @@ export default function MeetingPage() {
   const [tab, setTab] = useState('summary');
   const [rewriting, setRewriting] = useState(false);
   const [err, setErr] = useState('');
+  const retick = useRef(null);
 
   const load = useCallback(async () => {
     const { data, error } = await supabase().from('meetings').select('*').eq('id', id).maybeSingle();
@@ -42,6 +43,7 @@ export default function MeetingPage() {
       if (d && (BUSY.includes(d.status) || d.stage)) timer = setTimeout(tick, d.status === 'scheduled' ? 20000 : 4000);
       else if (d) refreshUsage?.();
     };
+    retick.current = () => { clearTimeout(timer); tick(); };
     tick();
     return () => { alive = false; clearTimeout(timer); };
   }, [load, refreshUsage]);
@@ -57,6 +59,12 @@ export default function MeetingPage() {
     try { const { meeting } = await api('/api/minutes', { id, outLang }); setM(meeting); toast('Minutes rewritten'); }
     catch (e) { setErr(e.message); }
     setRewriting(false);
+  }
+
+  async function retryBot() {
+    setErr('');
+    try { await api('/api/bot/retry', { id }); const d = await load(); if (d) setM(d); retick.current?.(); }
+    catch (e) { setErr(e.message); }
   }
 
   async function remove() {
@@ -100,7 +108,8 @@ export default function MeetingPage() {
           <p>{m.error || 'Something went wrong.'}</p>
           <div className="toolbar" style={{ justifyContent: 'center' }}>
             {m.transcript?.length ? <button className="btn btn-primary" type="button" onClick={() => rewrite()}>Try writing the minutes again</button>
-              : <Link className="btn btn-primary" href="/app/new">{m.source === 'bot' ? 'Send the bot again' : 'Upload again'}</Link>}
+              : m.bot_id ? <><button className="btn btn-primary" type="button" onClick={retryBot}>Try again</button><Link className="btn" href="/app/new">Send the bot to another meeting</Link></>
+              : <Link className="btn btn-primary" href="/app/new">Upload again</Link>}
           </div>
         </div>
       )}
