@@ -113,7 +113,7 @@ export default function NewMeeting() {
       <div className="card" style={{ padding: 18, display: 'grid', gap: 10 }}>
         <div className="field"><label htmlFor="recipients"><IconMail width={15} height={15} style={{ verticalAlign: '-2px', marginInlineEnd: 6 }} />Email the minutes to</label>
           <input id="recipients" type="text" dir="ltr" value={recipients} onChange={e => setRecipients(e.target.value)} placeholder="you@company.com, colleague@company.com" />
-          <span className="hint">Separate addresses with commas. Teams does not share participants’ emails with bots, so add them here.</span></div>
+          <span className="hint">Separate addresses with commas. Teams does not share participants’ emails with bots, so add them here. Minutes are sent from your Outlook once it is connected in Settings.</span></div>
         <label className="toolbar" style={{ gap: 8, cursor: 'pointer' }}>
           <input type="checkbox" checked={autoEmail} onChange={e => setAutoEmail(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--violet)' }} />
           <span>Send automatically as soon as the minutes are ready</span>

@@ -189,7 +189,7 @@ function EmailBar({ m, onSent }) {
   }
   const status = m.stage === 'Emailing the minutes' ? <span className="toolbar"><span className="spinner" />Emailing the minutes…</span>
     : m.email_status === 'sent' ? <span>Emailed to <b>{(m.recipients || []).join(', ')}</b>{m.emailed_at ? ` · ${fmtDate(m.emailed_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}</span>
-    : m.email_status === 'failed' ? <span style={{ color: 'var(--bad)' }}>Email not sent: {m.email_error}</span>
+    : m.email_status === 'failed' ? <span style={{ color: 'var(--bad)' }}>Email not sent: {m.email_error}{/Settings/.test(m.email_error || '') && <> <Link href="/app/settings" style={{ color: 'var(--violet-text)' }}>Open Settings</Link></>}</span>
     : <span className="muted">The minutes have not been emailed yet.</span>;
   return (
     <div className="card" style={{ padding: '12px 16px', marginBottom: 16, display: 'grid', gap: 10 }}>

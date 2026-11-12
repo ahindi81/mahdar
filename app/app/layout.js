@@ -3,7 +3,7 @@ import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 import Logo from '@/components/Logo';
-import { IconHome, IconPlus, IconTag } from '@/components/Icons';
+import { IconHome, IconPlus, IconTag, IconSettings } from '@/components/Icons';
 import { supabase } from '@/lib/client';
 import { TRIAL_MINUTES } from '@/lib/config';
 import { AppCtx } from '@/components/AppContext';
@@ -42,6 +42,7 @@ export default function AppLayout({ children }) {
   const nav = [
     { href: '/app', label: 'Meetings', icon: IconHome, on: pathname === '/app' || pathname.startsWith('/app/m/') },
     { href: '/app/new', label: 'New meeting', icon: IconPlus, on: pathname === '/app/new' },
+    { href: '/app/settings', label: 'Settings', icon: IconSettings, on: pathname === '/app/settings' },
     { href: '/pricing', label: 'Plans', icon: IconTag, on: false }
   ];
 
