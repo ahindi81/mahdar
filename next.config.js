@@ -2,5 +2,7 @@
 module.exports = {
   reactStrictMode: true,
   poweredByHeader: false,
-  experimental: { serverComponentsExternalPackages: ['ffmpeg-static'] }
+  serverExternalPackages: ['ffmpeg-static'],
+  // The app uses no next/image; turning the optimizer off removes that endpoint's attack surface.
+  images: { unoptimized: true }
 };
