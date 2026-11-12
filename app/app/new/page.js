@@ -3,15 +3,17 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase, accessToken, uploadWithProgress, api } from '@/lib/client';
 import { parseTranscriptText, speakersFromTurns, fmtClock } from '@/lib/meeting';
-import { IconMic, IconUpload, IconDoc } from '@/components/Icons';
+import { IconMic, IconUpload, IconDoc, IconBot, IconMail } from '@/components/Icons';
 import { useApp } from '@/components/AppContext';
 
 const ACCEPT = 'audio/*,video/*,.m4a,.mp3,.wav,.ogg,.oga,.opus,.flac,.aac,.webm,.mp4,.mov,.mkv,.amr,.3gp';
 
 export default function NewMeeting() {
   const router = useRouter();
-  const { refreshUsage } = useApp();
-  const [tab, setTab] = useState('record');
+  const { refreshUsage, user } = useApp();
+  const [tab, setTab] = useState('bot');
+  const [recipients, setRecipients] = useState(user?.email || '');
+  const [autoEmail, setAutoEmail] = useState(true);
   const [title, setTitle] = useState('');
   const [langHint, setLangHint] = useState('auto');
   const [outLang, setOutLang] = useState('same');
@@ -28,7 +30,7 @@ export default function NewMeeting() {
 
   async function createMeeting(fields) {
     const { data, error } = await supabase().from('meetings')
-      .insert({ title: title.trim(), lang_hint: langHint, out_lang: outLang, ...fields })
+      .insert({ title: title.trim(), lang_hint: langHint, out_lang: outLang, recipients: emailList(recipients), auto_email: autoEmail, ...fields })
       .select('id').single();
     if (error) throw new Error('Could not create the meeting: ' + error.message);
     return data.id;
@@ -65,6 +67,18 @@ export default function NewMeeting() {
     }
   }
 
+  async function sendBot({ meetingUrl, joinAt }) {
+    setError('');
+    if (!meetingUrl.trim()) { setError('Paste the meeting link first.'); return; }
+    try {
+      setBusy({ label: 'Sending Mahdar to the meeting', pct: null });
+      const { id } = await api('/api/bot', { meetingUrl: meetingUrl.trim(), joinAt, title: title.trim(), recipients: emailList(recipients), autoEmail, outLang, langHint });
+      router.push(`/app/m/${id}`);
+    } catch (e) {
+      setBusy(null); setError(e.message);
+    }
+  }
+
   return (
     <div className="new-grid">
       <div className="page-head" style={{ marginBottom: 0 }}><h1>New meeting</h1></div>
@@ -83,19 +97,60 @@ export default function NewMeeting() {
 
       <div className="card" style={{ overflow: 'hidden' }}>
         <div className="tabs" role="tablist" style={{ padding: '0 12px' }}>
-          {[['record', 'Record now', IconMic], ['upload', 'Upload recording', IconUpload], ['paste', 'Paste or import transcript', IconDoc]].map(([k, l, Ic]) => (
+          {[['bot', 'Bot joins meeting', IconBot], ['record', 'Record here', IconMic], ['upload', 'Upload recording', IconUpload], ['paste', 'Paste or import transcript', IconDoc]].map(([k, l, Ic]) => (
             <button key={k} type="button" role="tab" className="tab" aria-selected={tab === k} disabled={!!busy} onClick={() => setTab(k)}><Ic width={17} height={17} />{l}</button>
           ))}
         </div>
         <div style={{ padding: 20 }}>
           {error && <div className="notice bad" role="alert" style={{ marginBottom: 16 }}>{error}</div>}
           {busy ? <Busy {...busy} />
+            : tab === 'bot' ? <BotForm onSend={sendBot} />
             : tab === 'record' ? <Recorder onDone={blob => sendFile(blob, 'record')} onError={setError} />
             : tab === 'upload' ? <Upload onFile={f => sendFile(f, 'upload')} />
             : <Paste onSubmit={sendTranscript} />}
         </div>
       </div>
+      <div className="card" style={{ padding: 18, display: 'grid', gap: 10 }}>
+        <div className="field"><label htmlFor="recipients"><IconMail width={15} height={15} style={{ verticalAlign: '-2px', marginInlineEnd: 6 }} />Email the minutes to</label>
+          <input id="recipients" type="text" dir="ltr" value={recipients} onChange={e => setRecipients(e.target.value)} placeholder="you@company.com, colleague@company.com" />
+          <span className="hint">Separate addresses with commas. Teams does not share participants’ emails with bots, so add them here.</span></div>
+        <label className="toolbar" style={{ gap: 8, cursor: 'pointer' }}>
+          <input type="checkbox" checked={autoEmail} onChange={e => setAutoEmail(e.target.checked)} style={{ width: 18, height: 18, accentColor: 'var(--violet)' }} />
+          <span>Send automatically as soon as the minutes are ready</span>
+        </label>
+      </div>
       <p className="hint">Tell participants before you record. Audio is deleted once the transcript is ready.</p>
+    </div>
+  );
+}
+
+const emailList = s => String(s || '').split(/[\s,;]+/).map(x => x.trim().toLowerCase()).filter(x => /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/.test(x));
+
+function BotForm({ onSend }) {
+  const [url, setUrl] = useState('');
+  const [when, setWhen] = useState('now');
+  const [at, setAt] = useState(() => {
+    const d = new Date(Date.now() + 60 * 60 * 1000); d.setMinutes(Math.ceil(d.getMinutes() / 15) * 15, 0, 0);
+    const pad = n => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  });
+  const later = when === 'later';
+  const tooSoon = later && new Date(at).getTime() - Date.now() < 10 * 60 * 1000;
+  return (
+    <div style={{ display: 'grid', gap: 16 }}>
+      <div className="field"><label htmlFor="meetingUrl">Meeting link</label>
+        <input id="meetingUrl" type="text" dir="ltr" value={url} onChange={e => setUrl(e.target.value)} placeholder="https://teams.microsoft.com/l/meetup-join/…  or Zoom / Google Meet link" />
+        <span className="hint">In Teams, open the meeting and choose “Copy join link”. Zoom and Google Meet links work too.</span></div>
+      <div className="toolbar" role="radiogroup" aria-label="When should the bot join">
+        <label className="toolbar" style={{ gap: 6, cursor: 'pointer' }}><input type="radio" name="when" checked={!later} onChange={() => setWhen('now')} />Join now</label>
+        <label className="toolbar" style={{ gap: 6, cursor: 'pointer' }}><input type="radio" name="when" checked={later} onChange={() => setWhen('later')} />Schedule for</label>
+        {later && <input type="datetime-local" id="joinAt" value={at} onChange={e => setAt(e.target.value)} style={{ width: 'auto' }} aria-label="Meeting start time" />}
+      </div>
+      {tooSoon && <span className="hint">Less than 10 minutes away, so the bot will join right away.</span>}
+      <div className="notice"><b>What happens next</b>
+        <span>“Mahdar Notetaker” joins the call and posts a short note in the chat that it is recording. If the meeting has a lobby, admit it. When the meeting ends, the minutes are ready a few minutes later and emailed to the addresses below.</span></div>
+      <div><button className="btn btn-primary btn-lg" type="button" onClick={() => onSend({ meetingUrl: url, joinAt: later ? new Date(at).toISOString() : null })}>
+        <IconBot width={20} height={20} />{later ? 'Schedule the bot' : 'Send Mahdar to the meeting'}</button></div>
     </div>
   );
 }

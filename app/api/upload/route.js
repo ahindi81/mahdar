@@ -5,7 +5,7 @@ import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { authed, json, unauthorized } from '@/lib/server';
-import { processRecording } from '@/lib/pipeline';
+import { processRecording, userSaver } from '@/lib/pipeline';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -48,6 +48,6 @@ export async function POST(req) {
   }
 
   // Not awaited: the browser polls the meeting row for progress.
-  processRecording({ sb: auth.sb, meeting, inputPath, workDir });
+  processRecording({ meeting, inputPath, workDir, save: userSaver(auth.sb, id) });
   return json({ ok: true, bytes });
 }

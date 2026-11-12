@@ -6,6 +6,10 @@ import { fmtDuration } from '@/lib/meeting';
 import { IconSearch, IconMic, IconPlus } from '@/components/Icons';
 
 const STATUS = {
+  scheduled: ['Bot scheduled', 'violet'],
+  joining: ['Bot joining', 'violet'],
+  waiting: ['Bot in lobby', 'warn'],
+  recording: ['Recording', 'bad'],
   uploading: ['Uploading', 'warn'],
   processing: ['Processing', 'violet'],
   failed: ['Failed', 'bad'],
@@ -34,7 +38,7 @@ export default function Meetings() {
       if (!alive) return;
       if (error) { setError('Could not load your meetings. Refresh the page to try again.'); return; }
       setRows(data || []);
-      if ((data || []).some(m => m.status === 'processing' || m.status === 'uploading')) timer = setTimeout(load, 5000);
+      if ((data || []).some(m => !['ready', 'failed'].includes(m.status))) timer = setTimeout(load, 8000);
     }
     load();
     return () => { alive = false; clearTimeout(timer); };

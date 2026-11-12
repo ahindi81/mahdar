@@ -16,7 +16,7 @@ export async function POST(req) {
   if (outLang && ['same', 'ar', 'en'].includes(outLang)) meeting.out_lang = outLang;
   await auth.sb.from('meetings').update({ status: 'processing', stage: 'Writing the minutes', error: null, out_lang: meeting.out_lang }).eq('id', id);
   try {
-    const { minutes, title, search_text } = await writeMinutes(auth.sb, meeting);
+    const { minutes, title, search_text } = await writeMinutes(meeting);
     const { data } = await auth.sb.from('meetings')
       .update({ minutes, title, search_text, status: 'ready', stage: null }).eq('id', id).select('*').single();
     return json({ meeting: data });

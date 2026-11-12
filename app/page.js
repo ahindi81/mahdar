@@ -10,9 +10,9 @@ const FEATURES = [
   { icon: IconList, title: 'Action items with owners', text: 'Every task with who owns it and when it is due. Tick them off as your team delivers.' },
   { icon: IconChat, title: 'Ask Mahdar', text: '“What did the consultant say about the dampers?” Ask anything about a meeting and get the answer from the transcript.' },
   { icon: IconSearch, title: 'Search every meeting', text: 'Find any topic, name or number across all your meetings in seconds.' },
-  { icon: IconMail, title: 'Follow-up email drafted', text: 'A ready-to-send recap email after every meeting. Copy it into Outlook or WhatsApp.' },
+  { icon: IconMail, title: 'Minutes emailed to everyone', text: 'When the meeting ends, the minutes go straight to the participants’ inboxes, in Arabic or English.' },
   { icon: IconMic, title: 'Record, upload or import', text: 'Record in the browser, upload MP3, M4A or video, or import a Teams or Zoom transcript.' },
-  { icon: IconBot, title: 'Meeting bot', text: 'Mahdar joins your Zoom, Teams and Google Meet calls by itself and takes notes.', soon: true }
+  { icon: IconBot, title: 'Joins Teams, Zoom and Meet', text: 'Paste the meeting link or schedule it ahead. Mahdar Notetaker joins the call, records it and leaves when it ends.' }
 ];
 
 const FAQ = [
@@ -20,7 +20,7 @@ const FAQ = [
   ['Which files can I upload?', 'MP3, M4A, WAV, OGG, WebM and video files such as MP4 recordings from Zoom or Teams, up to about 1 GB. Long meetings are split and processed automatically.'],
   ['What happens to my recordings?', 'Your audio is used only to create the transcript and is deleted once processing finishes. Transcripts and minutes are private to your account.'],
   ['Do I need to tell people I am recording?', 'Yes. Always tell participants before recording a meeting. This is good practice and required by the Personal Data Protection Law.'],
-  ['Can Mahdar join my Zoom or Teams calls?', 'Not yet. A meeting bot is on the roadmap. Today, record in the browser or upload the recording after the call.'],
+  ['Can Mahdar join my Teams or Zoom calls?', 'Yes. Paste the meeting link, or schedule the bot ahead of time. “Mahdar Notetaker” joins, announces in the chat that it is recording, and leaves when the meeting ends. If your meeting has a lobby, admit it like any guest.'],
   ['How do I pay?', 'Start with the free trial. To upgrade, contact us and we will set up your plan by bank transfer while online payment is being added.']
 ];
 
@@ -127,9 +127,9 @@ export default function Home() {
             <h2>From recording to minutes in minutes</h2>
           </div>
           <div className="steps">
-            <div className="step"><h3>Capture the meeting</h3><p>Press record in your browser, or upload the recording from your phone, Zoom or Teams.</p></div>
+            <div className="step"><h3>Mahdar joins the meeting</h3><p>Send the Mahdar bot to your Teams, Zoom or Meet call, record in the browser, or upload a recording.</p></div>
             <div className="step"><h3>Mahdar listens</h3><p>Speech becomes a transcript with speaker names and timestamps, in the language people actually spoke.</p></div>
-            <div className="step"><h3>Share the minutes</h3><p>Get the summary, decisions and action items. Export to Word, copy the follow-up email, or ask questions.</p></div>
+            <div className="step"><h3>Everyone gets the minutes</h3><p>Summary, decisions and action items are emailed to the participants. Export to Word or ask questions any time.</p></div>
           </div>
         </div>
       </section>

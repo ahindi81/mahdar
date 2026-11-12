@@ -4,11 +4,14 @@ import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { supabase, api, fmtDate, fmtHijri, copyText, downloadFile, toast } from '@/lib/client';
 import { fmtClock, fmtDuration, hasArabic, speakerName, talkTime, transcriptText } from '@/lib/meeting';
-import { IconSearch } from '@/components/Icons';
+import { IconSearch, IconBot, IconMail } from '@/components/Icons';
 import { useApp } from '@/components/AppContext';
 
 const COLORS = ['#6a45f5', '#0e9f8e', '#d9480f', '#2b6cd8', '#b8329d', '#7a8b0c', '#c2410c', '#475569'];
 const STEPS = ['Uploading', 'Preparing audio', 'Transcribing and identifying speakers', 'Writing the minutes'];
+const BOT_STEPS = ['Downloading the recording', 'Preparing audio', 'Transcribing and identifying speakers', 'Writing the minutes', 'Emailing the minutes'];
+const LIVE = ['scheduled', 'joining', 'waiting', 'recording'];
+const BUSY = [...LIVE, 'uploading', 'processing'];
 
 export default function MeetingPage() {
   const { id } = useParams();
@@ -27,11 +30,16 @@ export default function MeetingPage() {
   }, [id]);
 
   useEffect(() => {
-    let timer, alive = true;
+    let timer, alive = true, n = 0;
     const tick = async () => {
-      const d = await load();
+      let d = await load();
       if (!alive) return;
-      if (d && (d.status === 'processing' || d.status === 'uploading')) timer = setTimeout(tick, 3000);
+      // For bot meetings, ask the bot service directly every few polls (covers missed webhooks).
+      if (d?.bot_id && (LIVE.includes(d.status) || d.status === 'processing') && n++ % 3 === 0) {
+        try { await api('/api/bot/sync', { id: d.id }); d = await load(); } catch {}
+        if (!alive) return;
+      }
+      if (d && (BUSY.includes(d.status) || d.stage)) timer = setTimeout(tick, d.status === 'scheduled' ? 20000 : 4000);
       else if (d) refreshUsage?.();
     };
     tick();
@@ -77,20 +85,22 @@ export default function MeetingPage() {
           <span lang="ar" dir="rtl">{fmtHijri(m.created_at)}</span>
           {m.duration_sec ? <span className="mono">{fmtDuration(m.duration_sec)}</span> : null}
           {speakers.length ? <span>{speakers.length} speakers</span> : null}
-          <span>{{ upload: 'Uploaded recording', record: 'Recorded in browser', transcript: 'Imported transcript' }[m.source]}</span>
+          <span>{{ upload: 'Uploaded recording', record: 'Recorded in browser', transcript: 'Imported transcript', bot: `Recorded by bot${m.platform ? ' · ' + ({ teams: 'Microsoft Teams', zoom: 'Zoom', meet: 'Google Meet', webex: 'Webex' }[m.platform] || '') : ''}` }[m.source]}</span>
         </div>
       </div>
 
       {err && <div className="notice bad" role="alert" style={{ marginBottom: 14 }}>{err}</div>}
 
+      {LIVE.includes(m.status) && <BotLive m={m} onStopped={deleted => deleted ? router.replace('/app') : load()} />}
       {(m.status === 'processing' || m.status === 'uploading') && !rewriting && <Processing m={m} />}
+      {m.status === 'ready' && m.minutes && <EmailBar m={m} onSent={load} />}
       {m.status === 'failed' && (
         <div className="card state-box">
           <span className="chip bad">Processing failed</span>
           <p>{m.error || 'Something went wrong.'}</p>
           <div className="toolbar" style={{ justifyContent: 'center' }}>
             {m.transcript?.length ? <button className="btn btn-primary" type="button" onClick={() => rewrite()}>Try writing the minutes again</button>
-              : <Link className="btn btn-primary" href="/app/new">Upload again</Link>}
+              : <Link className="btn btn-primary" href="/app/new">{m.source === 'bot' ? 'Send the bot again' : 'Upload again'}</Link>}
           </div>
         </div>
       )}
@@ -128,14 +138,76 @@ function TitleEdit({ value, onSave }) {
     style={{ flex: '1 1 300px', fontSize: 22, fontFamily: 'var(--font-display)', fontWeight: 600 }} aria-label="Meeting title" />;
 }
 
+function BotLive({ m, onStopped }) {
+  const [busy, setBusy] = useState(false);
+  const scheduled = m.status === 'scheduled';
+  async function stop() {
+    const q = scheduled ? 'Cancel the scheduled bot for this meeting?' : 'Stop recording now? The bot leaves the meeting and the minutes are prepared from what was recorded so far.';
+    if (!window.confirm(q)) return;
+    setBusy(true);
+    try { const r = await api('/api/bot/stop', { id: m.id }); onStopped(r.deleted); }
+    catch (e) { toast(e.message); }
+    setBusy(false);
+  }
+  const label = { scheduled: 'Scheduled', joining: 'Joining', waiting: 'In the lobby', recording: 'Recording' }[m.status];
+  return (
+    <div className="card state-box" aria-live="polite">
+      <span className={'chip ' + (m.status === 'recording' ? 'bad' : m.status === 'waiting' ? 'warn' : 'violet')}>
+        {m.status === 'recording' ? <span className="dot pulse" /> : <IconBot width={14} height={14} />}{label}
+      </span>
+      <h2 style={{ fontSize: 20 }}>
+        {scheduled ? `Mahdar will join at ${fmtDate(m.join_at, { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : (m.stage || 'Joining the meeting')}
+      </h2>
+      {m.status === 'waiting' && <p className="muted">In Teams, open the participants list and click <b>Admit</b> next to “Mahdar Notetaker”.</p>}
+      {m.status === 'recording' && <p className="muted">The minutes will be ready a few minutes after the meeting ends{m.auto_email && m.recipients?.length ? `, then emailed to ${m.recipients.length} ${m.recipients.length === 1 ? 'person' : 'people'}` : ''}.</p>}
+      {m.meeting_url && <a className="hint" href={m.meeting_url} target="_blank" rel="noopener noreferrer" style={{ overflowWrap: 'anywhere' }}>Open the meeting link</a>}
+      <button className="btn btn-sm" type="button" disabled={busy} onClick={stop}>{scheduled ? 'Cancel bot' : 'Stop recording'}</button>
+    </div>
+  );
+}
+
+function EmailBar({ m, onSent }) {
+  const [open, setOpen] = useState(false);
+  const [to, setTo] = useState((m.recipients || []).join(', '));
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState('');
+  useEffect(() => setTo((m.recipients || []).join(', ')), [m.recipients]);
+  async function send() {
+    setErr(''); setBusy(true);
+    try { const r = await api('/api/email', { id: m.id, recipients: to.split(/[\s,;]+/).filter(Boolean) }); toast(`Minutes emailed to ${r.count} ${r.count === 1 ? 'person' : 'people'}`); setOpen(false); onSent(); }
+    catch (e) { setErr(e.message); }
+    setBusy(false);
+  }
+  const status = m.stage === 'Emailing the minutes' ? <span className="toolbar"><span className="spinner" />Emailing the minutes…</span>
+    : m.email_status === 'sent' ? <span>Emailed to <b>{(m.recipients || []).join(', ')}</b>{m.emailed_at ? ` · ${fmtDate(m.emailed_at, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : ''}</span>
+    : m.email_status === 'failed' ? <span style={{ color: 'var(--bad)' }}>Email not sent: {m.email_error}</span>
+    : <span className="muted">The minutes have not been emailed yet.</span>;
+  return (
+    <div className="card" style={{ padding: '12px 16px', marginBottom: 16, display: 'grid', gap: 10 }}>
+      <div className="toolbar">
+        <IconMail width={18} height={18} style={{ color: 'var(--violet-text)' }} />
+        <div style={{ flex: '1 1 260px', minWidth: 0, overflowWrap: 'anywhere', fontSize: 14 }}>{status}</div>
+        <button className="btn btn-sm" type="button" onClick={() => setOpen(o => !o)}>{m.email_status === 'sent' ? 'Send again' : 'Email minutes'}</button>
+      </div>
+      {open && <div className="toolbar">
+        <input type="text" dir="ltr" value={to} onChange={e => setTo(e.target.value)} placeholder="name@company.com, …" aria-label="Recipients" style={{ flex: '1 1 300px', minWidth: 0 }} />
+        <button className="btn btn-primary btn-sm" type="button" disabled={busy || !to.trim()} onClick={send}>{busy && <span className="spinner" />}Send</button>
+      </div>}
+      {err && <div className="notice bad">{err}</div>}
+    </div>
+  );
+}
+
 function Processing({ m }) {
-  const current = m.status === 'uploading' ? 0 : Math.max(1, STEPS.findIndex(s => (m.stage || '').startsWith(s)));
+  const steps = m.source === 'bot' ? BOT_STEPS : STEPS;
+  const found = steps.findIndex(s => (m.stage || '').startsWith(s));
+  const current = m.status === 'uploading' ? 0 : Math.max(m.source === 'bot' ? 0 : 1, found);
   return (
     <div className="card state-box" aria-live="polite">
       <span className="spinner" style={{ width: 26, height: 26, color: 'var(--violet)' }} />
       <h2 style={{ fontSize: 20 }}>{m.stage || (m.status === 'uploading' ? 'Waiting for the upload' : 'Processing')}…</h2>
       <div style={{ display: 'grid', gap: 8, textAlign: 'start' }}>
-        {STEPS.map((s, i) => (
+        {steps.filter(s => s !== 'Emailing the minutes' || (m.auto_email && m.recipients?.length)).map((s, i) => (
           <div key={s} className="toolbar" style={{ color: i < current ? 'var(--good)' : i === current ? 'var(--fg)' : 'var(--muted)' }}>
             <span style={{ width: 18 }}>{i < current ? '✓' : i === current ? '•' : '○'}</span><span>{s}</span>
           </div>
