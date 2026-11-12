@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import Logo from './Logo';
 import { supabase } from '@/lib/client';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '@/lib/config';
 
 export default function AuthForm({ mode }) {
   const router = useRouter();
@@ -26,9 +27,17 @@ export default function AuthForm({ mode }) {
     try {
       if (isSignup) {
         if (password.length < 8) throw new Error('Use a password of at least 8 characters.');
-        const r = await fetch('/api/signup', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ email, password, name }) });
-        const j = await r.json().catch(() => ({}));
-        if (j.fallback) {
+        let r = null, j = {};
+        try {
+          r = await fetch(`${SUPABASE_URL}/functions/v1/signup`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', apikey: SUPABASE_ANON_KEY, Authorization: `Bearer ${SUPABASE_ANON_KEY}` },
+            body: JSON.stringify({ email, password, name })
+          });
+          j = await r.json().catch(() => ({}));
+        } catch { r = null; }
+        if (!r || r.status >= 500) {
+          // Sign-up service unreachable: fall back to the standard flow (may send a confirmation email).
           const { data, error } = await sb.auth.signUp({ email, password, options: { data: { name }, emailRedirectTo: window.location.origin + '/app' } });
           if (error) throw error;
           if (!data.session) { setInfo('Check your email to confirm your account, then log in.'); setBusy(false); return; }
